@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Assignment2: Secure DLT inventory management</title>
+  </head>
+  <body>
+    <% if (!step || step === 'form') { %>
+      <h2>Submitting a new record:</h2>
+      <form action="/submit-record" method="POST">
+        <div>
+          <label>Origin Inventory Node</label>
+          <select name="originNode" required>
+            <option value="A">Inventory A</option>
+            <option value="B">Inventory B</option>
+            <option value="C">Inventory C</option>
+            <option value="D">Inventory D</option>
+          </select>
+        </div>
+        <div>
+          <label>ItemID</label>
+          <input type="number" name="ItemID" required>
+        </div>
+
+      <div>
+        <label>ItemQty</label>
+        <input type="number" name="ItemQty" required>
+      </div>
+
+      <div>
+        <label>ItemPrice</label>
+        <input type="number" name="ItemPrice" required>
+      </div>
+
+      <div>
+        <label>Location</label>
+        <input type="text" name="location" required>
+      </div>
+
+        <button type="submit">Submit Record</button>
+      </form>
+    <% } %>
+
+    <% if (step === 'demo') { %>
+      <h1>Signature System Demonstration</h1>
+
+      <h2>Submitted Record:</h2>
+      <p><strong>Origin Node:</strong> <%= originNode %></p>
+      <p><strong>ItemID:</strong> <%= record.ItemID %></p>
+      <p><strong>ItemQty:</strong> <%= record.ItemQty %></p>
+      <p><strong>ItemPrice:</strong> <%= record.ItemPrice %></p>
+      <p><strong>Location:</strong> <%= record.location %></p>
+
+      <h2>Steps:</h2>
+      <h3>Key Information</h3>
+      <p><strong>Public Key:</strong> (<%= publicKey.e %>, <%= publicKey.n %>)</p>
+      <p><strong>Private Key:</strong> (<%= privateKey.d %>, <%= privateKey.n %>)</p>
+
+      <h3>Step 1: Record Signed with RSA</h3>
+      <p>The record was converted to string and signed using the RSA private key for inventory <%= originNode %>.</p>
+      <p><strong>Signature:</strong> <%= signature %></p>
+
+      <h3>Step 2: Signed Record Broadcasted</h3>
+      <p>The signed record (record + signature) was broadcasted and stored in all pending files: pendingA.json, pendingB.json, pendingC.json, pendingD.json</p>
+
+      <h3>Step 3: Received in Pending</h3>
+      <p>The signed record is now in all pending files, awaiting verification by each inventory.</p>
+
+      <h3>Step 4: Signature Checked</h3>
+      <p>Click below to begin the manual consensus workflow. Each step is performed by hand so you can inspect the verification, comparison, and commit stages.</p>
+      <form action="/process-pending" method="POST">
+        <input type="hidden" name="stage" value="verify">
+        <button type="submit">Start Manual Consensus</button>
+      </form>
+
+      <h3>Step 5: Temporarily Stored in Pending</h3>
+      <p>If verification succeeds, the full record (without signature) will be stored back in all pending files and then compared across inventories.</p>
+
+      <a href="/">Back to Form</a>
+    <% } %>
+
+    <% if (step === 'process') { %>
+      <h1>Manual Consensus Workflow</h1>
+      <p>This workflow is split into separate steps so you can follow the full PoA consensus process.</p>
+
+      <% if (results.stage === 'verify') { %>
+        <h2>Step 1: Read and Verify Signatures</h2>
+        <p>All pending files were opened and signatures were checked. Valid records were stored in pending files without signatures.</p>
+
+        <% if (results.pending.length === 0) { %>
+          <p>No pending records to process.</p>
+        <% } else { %>
+          <ul>
+            <% results.pending.forEach(result => { %>
+              <li>
+                <strong>Inventory <%= result.inventory %>:</strong>
+                <p>Verified <%= result.verified.length %> record(s); discarded <%= result.invalid %> invalid record(s).</p>
+                <% if (result.verified.length > 0) { %>
+                  <ul>
+                    <% result.verified.forEach(rec => { %>
+                      <li>ItemID: <%= rec.ItemID %>, Qty: <%= rec.ItemQty %>, Price: <%= rec.ItemPrice %>, Location: <%= rec.location %></li>
+                    <% }) %>
+                  </ul>
+                <% } %>
+              </li>
+            <% }) %>
+          </ul>
+        <% } %>
+
+        <form action="/process-pending" method="POST">
+          <input type="hidden" name="stage" value="compare">
+          <button type="submit">Step 2: Compare Records</button>
+        </form>
+      <% } else if (results.stage === 'compare') { %>
+        <h2>Step 2: Compare Records Across Inventories</h2>
+        <p>Pending records are compared across the four inventories. Consensus requires at least 3 matching copies of the same record.</p>
+
+        <% if (results.candidates.length === 0) { %>
+          <p>No pending records are available for comparison.</p>
+        <% } else { %>
+          <ul>
+            <% results.candidates.forEach(candidate => { %>
+              <li>
+                <strong>Record:</strong> ItemID <%= candidate.record.ItemID %>, Qty <%= candidate.record.ItemQty %>, Price <%= candidate.record.ItemPrice %>, Location <%= candidate.record.location %><br>
+                <strong>Matches:</strong> <%= candidate.count %> inventories (<%= candidate.sources.join(', ') %>)
+              </li>
+            <% }) %>
+          </ul>
+        <% } %>
+
+        <p><strong><%= results.consensus.message %></strong></p>
+
+        <% if (results.consensus.canCommit) { %>
+          <form action="/process-pending" method="POST">
+            <input type="hidden" name="stage" value="commit">
+            <button type="submit">Step 3: Commit Consensus Record</button>
+          </form>
+        <% } else { %>
+          <p>Consensus failed. Inventories will not be updated.</p>
+        <% } %>
+      <% } else if (results.stage === 'commit') { %>
+        <h2>Step 3: Commit Record to Inventories</h2>
+        <p><strong><%= results.consensus.message %></strong></p>
+
+        <% if (results.consensus.status === 'passed') { %>
+          <ul>
+            <% results.consensus.passedRecords.forEach(rec => { %>
+              <li>Committed record: ItemID <%= rec.record.ItemID %>, Qty <%= rec.record.ItemQty %>, Price: <%= rec.record.ItemPrice %>, Location: <%= rec.record.location %> (sources: <%= rec.sources.join(', ') %>)</li>
+            <% }) %>
+          </ul>
+        <% } else { %>
+          <p>No records were committed because consensus was not reached.</p>
+        <% } %>
+      <% } %>
+
+      <a href="/">Back to Form</a>
+    <% } %>
+
+  </body>
+</html>

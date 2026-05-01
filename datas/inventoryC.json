@@ -1,0 +1,12 @@
+[
+  {
+    "original": "A",
+    "record": {
+      "ItemID": "001",
+      "ItemQty": "4",
+      "ItemPrice": "5",
+      "location": "A"
+    },
+    "recordString": "001|4|5|A"
+  }
+]
