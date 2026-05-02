@@ -38,6 +38,96 @@
 
         <button type="submit">Submit Record</button>
       </form>
+
+      <h2>Retrieve data by Record ID</h2>
+      <form action="/query-record" method="POST">
+        <div>
+          <label>Record ID</label>
+          <input type="text" name="recordID" placeholder="Item ID" required>
+        </div>
+        <button type="submit">Search Record</button>
+      </form>
+
+      <% if (typeof message !== 'undefined' && message) { %>
+        <p><strong><%= message %></strong></p>
+      <% } %>
+    <% } %>
+
+    <% if (step === 'search') { %>
+      <h1>Record Lookup Demo</h1>
+      <p><strong>Search Record ID:</strong> <%= recordId %></p>
+      <p><strong>Status:</strong> <%= message %></p>
+
+      <% if (!record) { %>
+        <p>Record not found. Try another ID or return to the form.</p>
+        <a href="/">Back to Form</a>
+      <% } else { %>
+        <% if (!queryStage || queryStage === 'search') { %>
+          <p>Record found. Proceed through the multi-signature verification steps below.</p>
+          <form action="/query-record" method="POST">
+            <input type="hidden" name="recordID" value="<%= recordId %>">
+            <input type="hidden" name="stage" value="generate">
+            <button type="submit">Step 1: Generate PKG key pair</button>
+          </form>
+        <% } else if (queryStage === 'generate') { %>
+          <h2>Step 1: PKG Key Generation</h2>
+          <p><strong>PKG public key:</strong> (<%= multiSig.pkgParams.e %>, <%= multiSig.pkgParams.n %>)</p>
+          <p><strong>PKG private key:</strong> (<%= multiSig.pkgParams.d %>, <%= multiSig.pkgParams.n %>)</p>
+
+          <h3>Identity-based secret keys</h3>
+          <ul>
+            <% Object.values(multiSig.identitySecrets).forEach(secret => { %>
+              <li><strong><%= secret.inventory %></strong>: secretKey = <%= secret.secretKey %></li>
+            <% }) %>
+          </ul>
+
+          <h3>t values from inventory randoms</h3>
+          <ul>
+            <% Object.entries(multiSig.tValues).forEach(([inv, tVal]) => { %>
+              <li><strong><%= inv %></strong>: t = <%= tVal %></li>
+            <% }) %>
+          </ul>
+
+          <form action="/query-record" method="POST">
+            <input type="hidden" name="recordID" value="<%= recordId %>">
+            <input type="hidden" name="stage" value="partials">
+            <button type="submit">Step 2: Create partial signatures</button>
+          </form>
+        <% } else if (queryStage === 'partials') { %>
+          <h2>Step 2: Inventory Partial Signatures</h2>
+          <p><strong>Request hash:</strong> <%= multiSig.partials[0].requestHash %></p>
+          <ul>
+            <% multiSig.partials.forEach(part => { %>
+              <li>
+                <strong><%= part.inventory %></strong>: partialSignature = <%= part.partialSignature %>, valid = <%= part.valid %>
+              </li>
+            <% }) %>
+          </ul>
+
+          <form action="/query-record" method="POST">
+            <input type="hidden" name="recordID" value="<%= recordId %>">
+            <input type="hidden" name="stage" value="combine">
+            <button type="submit">Step 3: Combine signatures</button>
+          </form>
+        <% } else if (queryStage === 'combine') { %>
+          <h2>Step 3: Final Multi-Signature</h2>
+          <p><strong>Combined multi-signature:</strong> <%= multiSig.combinedSignature %></p>
+          <p><strong>Valid signature count:</strong> <%= multiSig.validSignaturesCount %> / 4</p>
+
+          <% if (multiSig.enough) { %>
+            <p><strong>Verification passed.</strong> Displaying the latest record version.</p>
+            <h3>Latest Record Version</h3>
+            <p><strong>ItemID:</strong> <%= record.ItemID %></p>
+            <p><strong>ItemQty:</strong> <%= record.ItemQty %></p>
+            <p><strong>ItemPrice:</strong> <%= record.ItemPrice %></p>
+            <p><strong>Location:</strong> <%= record.location %></p>
+          <% } else { %>
+            <p><strong>Access denied. Not enough valid signatures.</strong></p>
+          <% } %>
+        <% } %>
+
+        <a href="/">Back to Form</a>
+      <% } %>
     <% } %>
 
     <% if (step === 'demo') { %>

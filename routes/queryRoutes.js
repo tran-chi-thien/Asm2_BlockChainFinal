@@ -1,1 +1,8 @@
-/* This is made for step 3, which use will query to retrieve data  */
+const express = require("express");
+const { queryRecord } = require("../controller/queryController");
+
+const router = express.Router();
+
+router.post('/query-record', queryRecord);
+
+module.exports = router;
