@@ -1,5 +1,11 @@
 const fs = require('fs').promises;
 const { verifySignature } = require("./rsa");
+const {
+  computePKGKeyPair,
+  deriveIdentitySecretKeys,
+  calculateTValues,
+  verifyInventoryPartialSignature
+} = require("./multiSignature");
 
 const INVENTORIES = ["A", "B", "C", "D"];
 
@@ -47,6 +53,9 @@ async function verifyAndStorePending() {
   const pendingResults = [];
   const validRecordMap = new Map();
   const cleanedPendingByInventory = {};
+  const pkgParams = computePKGKeyPair();
+  const identitySecrets = deriveIdentitySecretKeys(pkgParams);
+  const tValues = calculateTValues(pkgParams);
 
   for (const inv of INVENTORIES) {
     const pendingEntries = await readJsonFile(pendingPath(inv));
@@ -54,8 +63,9 @@ async function verifyAndStorePending() {
     let invalidCount = 0;
 
     for (const entry of pendingEntries) {
-      const { valid } = verifySignature(entry.signature, entry.record);
-      if (valid) {
+      const originValid = entry.originSignature && verifySignature(entry.originSignature, entry.record).valid;
+      const partialValid = entry.partialSignature && verifyInventoryPartialSignature(BigInt(entry.partialSignature), entry.record, inv, identitySecrets, tValues, pkgParams);
+      if (originValid && partialValid) {
         cleanedRecords.push(entry.record);
         const key = canonicalRecordKey(entry.record);
         const summary = validRecordMap.get(key) ?? { record: entry.record, sources: new Set() };

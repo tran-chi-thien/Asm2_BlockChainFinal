@@ -6,6 +6,7 @@ const {
   buildPartialSignatures,
   combinePartialSignatures
 } = require('../services/multiSignature');
+const { recordToString } = require('../services/rsa');
 
 const INVENTORIES = ['A', 'B', 'C', 'D'];
 
@@ -26,6 +27,27 @@ async function readInventory(inv) {
     }
     throw err;
   }
+}
+
+function chooseConsensusRecord(matches) {
+  const recordMap = new Map();
+
+  for (const match of matches) {
+    const key = recordToString(match.record);
+    const summary = recordMap.get(key) || { record: match.record, count: 0, sources: new Set() };
+    summary.count += 1;
+    summary.sources.add(match.inventory);
+    recordMap.set(key, summary);
+  }
+
+  let best = null;
+  for (const summary of recordMap.values()) {
+    if (!best || summary.count > best.count) {
+      best = summary;
+    }
+  }
+
+  return best;
 }
 
 async function queryRecord(req, res) {
@@ -60,25 +82,27 @@ async function queryRecord(req, res) {
     });
   }
 
-  const latestMatch = matches[matches.length - 1];
+  const bestRecord = chooseConsensusRecord(matches);
+  const consensusCount = bestRecord.count;
+  const consensusPassed = consensusCount >= 3;
   const pkgParams = computePKGKeyPair();
   const identitySecrets = deriveIdentitySecretKeys(pkgParams);
   const tValues = calculateTValues(pkgParams);
-  const partials = buildPartialSignatures(recordID, identitySecrets, tValues, pkgParams);
+  const partials = buildPartialSignatures(bestRecord.record, identitySecrets, tValues, pkgParams);
   const combinedSignature = combinePartialSignatures(partials, pkgParams);
   const validSignaturesCount = partials.filter((p) => p.valid).length;
-  const enough = validSignaturesCount >= 3;
+  const enough = consensusPassed;
   const message = queryStage === 'search'
     ? 'Record found. Begin the step-by-step verification demo.'
     : enough
-      ? `Verification passed with ${validSignaturesCount} valid signatures.`
-      : 'Access denied. Not enough valid signatures.';
+      ? `Consensus passed with ${consensusCount} matching inventory copies.`
+      : 'Access denied. Not enough matching copies to reach consensus.';
 
   return res.render('index', {
     step: 'search',
     recordId: recordID,
     queryStage,
-    record: latestMatch.record,
+    record: bestRecord.record,
     message,
     multiSig: {
       pkgParams,
@@ -87,7 +111,11 @@ async function queryRecord(req, res) {
       partials,
       combinedSignature,
       validSignaturesCount,
-      enough
+      enough,
+      consensus: {
+        count: consensusCount,
+        sources: Array.from(bestRecord.sources).sort()
+      }
     }
   });
 }

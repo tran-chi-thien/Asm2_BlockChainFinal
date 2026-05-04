@@ -112,17 +112,19 @@
         <% } else if (queryStage === 'combine') { %>
           <h2>Step 3: Final Multi-Signature</h2>
           <p><strong>Combined multi-signature:</strong> <%= multiSig.combinedSignature %></p>
-          <p><strong>Valid signature count:</strong> <%= multiSig.validSignaturesCount %> / 4</p>
+          <p><strong>Generated partial signatures:</strong> <%= multiSig.validSignaturesCount %> / 4</p>
+          <p><strong>Consensus match count:</strong> <%= multiSig.consensus.count %> / 4</p>
+          <p><strong>Consensus sources:</strong> <%= multiSig.consensus.sources.join(', ') %></p>
 
           <% if (multiSig.enough) { %>
-            <p><strong>Verification passed.</strong> Displaying the latest record version.</p>
-            <h3>Latest Record Version</h3>
+            <p><strong>Verification passed.</strong> Displaying the majority record version.</p>
+            <h3>Majority Record Version</h3>
             <p><strong>ItemID:</strong> <%= record.ItemID %></p>
             <p><strong>ItemQty:</strong> <%= record.ItemQty %></p>
             <p><strong>ItemPrice:</strong> <%= record.ItemPrice %></p>
             <p><strong>Location:</strong> <%= record.location %></p>
           <% } else { %>
-            <p><strong>Access denied. Not enough valid signatures.</strong></p>
+            <p><strong>Access denied. Not enough matching copies to reach consensus.</strong></p>
           <% } %>
         <% } %>
 

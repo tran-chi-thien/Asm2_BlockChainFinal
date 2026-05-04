@@ -1,5 +1,11 @@
 const fs = require('fs').promises;
 const { signRecord } = require("../services/rsa");
+const {
+  computePKGKeyPair,
+  deriveIdentitySecretKeys,
+  calculateTValues,
+  buildPartialSignatures
+} = require("../services/multiSignature");
 
 function submitRecord(req, res) {
     const originNode = req.body.originNode;
@@ -7,11 +13,17 @@ function submitRecord(req, res) {
         ItemID: req.body.ItemID.trim(),
         ItemQty: req.body.ItemQty.trim(),
         ItemPrice: req.body.ItemPrice.trim(),
-        location: req.body.location.trim()
+        location: req.body.location.trim(),
+        originNode
     };
 
     // Sign the record
     const { signature, publicKey, privateKey } = signRecord(record, originNode);
+
+    const pkgParams = computePKGKeyPair();
+    const identitySecrets = deriveIdentitySecretKeys(pkgParams);
+    const tValues = calculateTValues(pkgParams);
+    const partials = buildPartialSignatures(record, identitySecrets, tValues, pkgParams);
 
     // Broadcast to all pending files
     const inventories = ['A', 'B', 'C', 'D'];
@@ -25,7 +37,13 @@ function submitRecord(req, res) {
             } catch (err) {
                 // File doesn't exist or empty, start with empty array
             }
-            pending.push({ record, signature: signature.toString() });
+            const partial = partials.find((part) => part.inventory === inv);
+            pending.push({
+                record,
+                originNode,
+                originSignature: signature.toString(),
+                partialSignature: partial.partialSignature.toString()
+            });
             await fs.writeFile(pendingFile, JSON.stringify(pending, null, 2));
         }
         // Render demo page

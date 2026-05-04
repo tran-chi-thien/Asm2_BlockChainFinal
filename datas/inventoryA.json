@@ -1,0 +1,23 @@
+[
+  {
+    "original": "A",
+    "record": {
+      "ItemID": "001",
+      "ItemQty": "12",
+      "ItemPrice": "13",
+      "location": "A"
+    },
+    "recordString": "001|12|13|A"
+  },
+  {
+    "original": "A",
+    "record": {
+      "ItemID": "001",
+      "ItemQty": "11",
+      "ItemPrice": "111",
+      "location": "A",
+      "originNode": "A"
+    },
+    "recordString": "001|11|111|A"
+  }
+]

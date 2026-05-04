@@ -1,5 +1,5 @@
 const keys = require("../configs/keys");
-const { sha256, powMod, modInverse } = require("./rsa");
+const { sha256, powMod, modInverse, recordToString } = require("./rsa");
 
 function computePKGKeyPair() {
   const { p, q, e } = keys.PART2.PKG;
@@ -38,13 +38,17 @@ function calculateTValues(pkgParams) {
   return tValues;
 }
 
+function hashRecord(record) {
+  return sha256(recordToString(record));
+}
+
 function verifyPartialSignature(partialSignature, requestHashBig, secretKey, randomValue, tValue, pkgParams) {
   const expected = (requestHashBig * secretKey + randomValue + tValue) % pkgParams.n;
   return expected === partialSignature;
 }
 
-function buildPartialSignatures(recordId, identitySecrets, tValues, pkgParams) {
-  const requestHash = sha256(`RecordID:${recordId}`);
+function buildPartialSignatures(record, identitySecrets, tValues, pkgParams) {
+  const requestHash = hashRecord(record);
   const requestHashBig = BigInt(`0x${requestHash}`);
   return Object.values(identitySecrets).map((secret) => {
     const randomValue = BigInt(keys.RANDOMS[`Inventory${secret.inventory}`]);
@@ -64,15 +68,24 @@ function buildPartialSignatures(recordId, identitySecrets, tValues, pkgParams) {
   });
 }
 
+function verifyInventoryPartialSignature(partialSignature, record, inventory, identitySecrets, tValues, pkgParams) {
+  const requestHash = hashRecord(record);
+  const requestHashBig = BigInt(`0x${requestHash}`);
+  const secret = identitySecrets[inventory];
+  const randomValue = BigInt(keys.RANDOMS[`Inventory${inventory}`]);
+  const tValue = tValues[inventory];
+  return verifyPartialSignature(partialSignature, requestHashBig, secret.secretKey, randomValue, tValue, pkgParams);
+}
+
 function combinePartialSignatures(partials, pkgParams) {
   return partials.reduce((combined, item) => (combined + item.partialSignature) % pkgParams.n, 0n);
 }
 
-function buildMultiSignaturePackage(recordId) {
+function buildMultiSignaturePackage(record) {
   const pkgParams = computePKGKeyPair();
   const identitySecrets = deriveIdentitySecretKeys(pkgParams);
   const tValues = calculateTValues(pkgParams);
-  const partials = buildPartialSignatures(recordId, identitySecrets, tValues, pkgParams);
+  const partials = buildPartialSignatures(record, identitySecrets, tValues, pkgParams);
   const combinedSignature = combinePartialSignatures(partials, pkgParams);
   const validSignaturesCount = partials.filter((p) => p.valid).length;
   const enough = validSignaturesCount >= 3;
@@ -93,6 +106,7 @@ module.exports = {
   deriveIdentitySecretKeys,
   calculateTValues,
   buildPartialSignatures,
+  verifyInventoryPartialSignature,
   combinePartialSignatures,
   buildMultiSignaturePackage
 };
