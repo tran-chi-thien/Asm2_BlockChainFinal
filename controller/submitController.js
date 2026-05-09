@@ -1,11 +1,5 @@
 const fs = require('fs').promises;
-const { signRecord } = require("../services/rsa");
-const {
-  computePKGKeyPair,
-  deriveIdentitySecretKeys,
-  calculateTValues,
-  buildPartialSignatures
-} = require("../services/multiSignature");
+const { signRecord, verifySignature } = require("../services/rsa");
 
 function submitRecord(req, res) {
     const originNode = req.body.originNode;
@@ -17,43 +11,46 @@ function submitRecord(req, res) {
         originNode
     };
 
-    // Sign the record
-    const { signature, publicKey, privateKey } = signRecord(record, originNode);
+    // Step 1: Proposer X signs the record  (sig = hash^d mod n)
+    const { signature, hash, publicKey, privateKey } = signRecord(record, originNode);
 
-    const pkgParams = computePKGKeyPair();
-    const identitySecrets = deriveIdentitySecretKeys(pkgParams);
-    const tValues = calculateTValues(pkgParams);
-    const partials = buildPartialSignatures(record, identitySecrets, tValues, pkgParams);
-
-    // Broadcast to all pending files
     const inventories = ['A', 'B', 'C', 'D'];
     (async () => {
+        const broadcastResults = [];
+
         for (const inv of inventories) {
-            const pendingFile = `datas/pending${inv}.json`;
-            let pending = [];
-            try {
-                const data = await fs.readFile(pendingFile, 'utf8');
-                pending = JSON.parse(data);
-            } catch (err) {
-                // File doesn't exist or empty, start with empty array
+            // Step 2: Each inventory receives {record, signature} and verifies
+            //         sig^e mod n == hash  before storing in pending
+            const { valid } = verifySignature(signature.toString(), record);
+
+            if (valid) {
+                const pendingFile = `datas/pending${inv}.json`;
+                let pending = [];
+                try {
+                    const data = await fs.readFile(pendingFile, 'utf8');
+                    pending = JSON.parse(data);
+                } catch (err) {}
+                pending.push({ record, signature: signature.toString() });
+                await fs.writeFile(pendingFile, JSON.stringify(pending, null, 2));
             }
-            const partial = partials.find((part) => part.inventory === inv);
-            pending.push({
-                record,
-                originNode,
-                originSignature: signature.toString(),
-                partialSignature: partial.partialSignature.toString()
-            });
-            await fs.writeFile(pendingFile, JSON.stringify(pending, null, 2));
+
+            broadcastResults.push({ inventory: inv, accepted: valid });
         }
-        // Render demo page
-        res.render('index', { step: 'demo', originNode, record, signature: signature.toString(), publicKey, privateKey });
+
+        res.render('index', {
+            step: 'demo',
+            originNode,
+            record,
+            hash,
+            signature: signature.toString(),
+            publicKey,
+            privateKey,
+            broadcastResults
+        });
     })().catch(err => {
         console.error(err);
         res.status(500).send('Error processing record');
     });
 }
 
-module.exports = {
-    submitRecord
-}
+module.exports = { submitRecord };

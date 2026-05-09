@@ -133,39 +133,45 @@
     <% } %>
 
     <% if (step === 'demo') { %>
-      <h1>Signature System Demonstration</h1>
+      <h1>Record Submission</h1>
 
       <h2>Submitted Record:</h2>
-      <p><strong>Origin Node:</strong> <%= originNode %></p>
+      <p><strong>Origin Node (Proposer):</strong> <%= originNode %></p>
       <p><strong>ItemID:</strong> <%= record.ItemID %></p>
       <p><strong>ItemQty:</strong> <%= record.ItemQty %></p>
       <p><strong>ItemPrice:</strong> <%= record.ItemPrice %></p>
       <p><strong>Location:</strong> <%= record.location %></p>
 
       <h2>Steps:</h2>
-      <h3>Key Information</h3>
-      <p><strong>Public Key:</strong> (<%= publicKey.e %>, <%= publicKey.n %>)</p>
-      <p><strong>Private Key:</strong> (<%= privateKey.d %>, <%= privateKey.n %>)</p>
 
-      <h3>Step 1: Record Signed with RSA</h3>
-      <p>The record was converted to string and signed using the RSA private key for inventory <%= originNode %>.</p>
+      <h3>Step 1: Record Signed by Proposer</h3>
+      <p>Inventory <%= originNode %> converts the record to a string, hashes it (SHA-256), then signs: <em>signature = hash<sup>d</sup> mod n</em></p>
+      <p><strong>SHA-256 Hash:</strong> <%= hash %></p>
+      <p><strong>Public Key:</strong> (e = <%= publicKey.e %>, n = <%= publicKey.n %>)</p>
+      <p><strong>Private Key:</strong> (d = <%= privateKey.d %>, n = <%= privateKey.n %>)</p>
       <p><strong>Signature:</strong> <%= signature %></p>
 
-      <h3>Step 2: Signed Record Broadcasted</h3>
-      <p>The signed record (record + signature) was broadcasted and stored in all pending files: pendingA.json, pendingB.json, pendingC.json, pendingD.json</p>
+      <h3>Step 2: Broadcast &amp; Verify at Each Inventory</h3>
+      <p>The record and signature are sent to every inventory. Each one runs <em>sig<sup>e</sup> mod n == hash</em> before storing the record in its pending file.</p>
+      <ul>
+        <% broadcastResults.forEach(r => { %>
+          <li>
+            <strong>Inventory <%= r.inventory %>:</strong>
+            <% if (r.accepted) { %>
+              ACCEPTED — record stored in pending
+            <% } else { %>
+              REJECTED — signature invalid, record discarded
+            <% } %>
+          </li>
+        <% }) %>
+      </ul>
 
-      <h3>Step 3: Received in Pending</h3>
-      <p>The signed record is now in all pending files, awaiting verification by each inventory.</p>
-
-      <h3>Step 4: Signature Checked</h3>
-      <p>Click below to begin the manual consensus workflow. Each step is performed by hand so you can inspect the verification, comparison, and commit stages.</p>
+      <h3>Step 3: Consensus</h3>
+      <p>Records are now in the pending files of all inventories that accepted them. Run consensus to check if at least 3/4 agree and commit.</p>
       <form action="/process-pending" method="POST">
-        <input type="hidden" name="stage" value="verify">
-        <button type="submit">Start Manual Consensus</button>
+        <input type="hidden" name="stage" value="compare">
+        <button type="submit">Run Consensus</button>
       </form>
-
-      <h3>Step 5: Temporarily Stored in Pending</h3>
-      <p>If verification succeeds, the full record (without signature) will be stored back in all pending files and then compared across inventories.</p>
 
       <a href="/">Back to Form</a>
     <% } %>
@@ -174,37 +180,9 @@
       <h1>Manual Consensus Workflow</h1>
       <p>This workflow is split into separate steps so you can follow the full PoA consensus process.</p>
 
-      <% if (results.stage === 'verify') { %>
-        <h2>Step 1: Read and Verify Signatures</h2>
-        <p>All pending files were opened and signatures were checked. Valid records were stored in pending files without signatures.</p>
-
-        <% if (results.pending.length === 0) { %>
-          <p>No pending records to process.</p>
-        <% } else { %>
-          <ul>
-            <% results.pending.forEach(result => { %>
-              <li>
-                <strong>Inventory <%= result.inventory %>:</strong>
-                <p>Verified <%= result.verified.length %> record(s); discarded <%= result.invalid %> invalid record(s).</p>
-                <% if (result.verified.length > 0) { %>
-                  <ul>
-                    <% result.verified.forEach(rec => { %>
-                      <li>ItemID: <%= rec.ItemID %>, Qty: <%= rec.ItemQty %>, Price: <%= rec.ItemPrice %>, Location: <%= rec.location %></li>
-                    <% }) %>
-                  </ul>
-                <% } %>
-              </li>
-            <% }) %>
-          </ul>
-        <% } %>
-
-        <form action="/process-pending" method="POST">
-          <input type="hidden" name="stage" value="compare">
-          <button type="submit">Step 2: Compare Records</button>
-        </form>
-      <% } else if (results.stage === 'compare') { %>
-        <h2>Step 2: Compare Records Across Inventories</h2>
-        <p>Pending records are compared across the four inventories. Consensus requires at least 3 matching copies of the same record.</p>
+      <% if (results.stage === 'compare') { %>
+        <h2>Step 1: Compare Pending Records Across Inventories</h2>
+        <p>Pending files contain only records that passed signature verification at broadcast time. Consensus requires at least 3 inventories to hold the same record.</p>
 
         <% if (results.candidates.length === 0) { %>
           <p>No pending records are available for comparison.</p>
@@ -224,13 +202,13 @@
         <% if (results.consensus.canCommit) { %>
           <form action="/process-pending" method="POST">
             <input type="hidden" name="stage" value="commit">
-            <button type="submit">Step 3: Commit Consensus Record</button>
+            <button type="submit">Step 2: Commit to All Inventories</button>
           </form>
         <% } else { %>
           <p>Consensus failed. Inventories will not be updated.</p>
         <% } %>
       <% } else if (results.stage === 'commit') { %>
-        <h2>Step 3: Commit Record to Inventories</h2>
+        <h2>Step 2: Commit Record to Inventories</h2>
         <p><strong><%= results.consensus.message %></strong></p>
 
         <% if (results.consensus.status === 'passed') { %>

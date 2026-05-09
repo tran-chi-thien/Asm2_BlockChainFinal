@@ -65,11 +65,14 @@ async function queryRecord(req, res) {
   const matches = [];
   for (const inv of INVENTORIES) {
     const inventory = await readInventory(inv);
-    inventory.forEach((entry) => {
-      if (entry && entry.record && String(entry.record.ItemID).trim() === recordID) {
-        matches.push({ inventory: inv, record: entry.record });
-      }
-    });
+    // Collect all entries with this ItemID, then take the last one (most recently committed)
+    const entriesForID = inventory.filter(
+      entry => entry && entry.record && String(entry.record.ItemID).trim() === recordID
+    );
+    if (entriesForID.length > 0) {
+      const latest = entriesForID[entriesForID.length - 1];
+      matches.push({ inventory: inv, record: latest.record });
+    }
   }
 
   if (matches.length === 0) {

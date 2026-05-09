@@ -76,8 +76,8 @@ function normalizeInventoryName(inventory) {
 
 // derive n, phi and dm take data from the key file to generate key 
 function calculateRSAParams(inventory) {
-  const keyName = normalizeInventoryName(inventory);
-  const keyData = keys.PART1[keyName];
+  const invName = normalizeInventoryName(inventory);
+  const keyData = keys.PART1[invName];
 
   const p = keyData.p;
   const q = keyData.q;
