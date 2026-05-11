@@ -111,7 +111,7 @@ function signRecord(record, inventory) {
 function verifySignature(signature, record) {
   const plaintext = typeof record === "string" ? record : recordToString(record);
   const hash = sha256(plaintext);
-  const { e, n } = calculateRSAParams(record.originNode || record.location);
+  const { e, n } = calculateRSAParams(record.originNode);
   const decrypted = powMod(BigInt(signature), e, n);
   const decryptedHex = decrypted.toString(16).padStart(hash.length, "0");
   const valid = decryptedHex === hash;
