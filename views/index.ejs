@@ -88,6 +88,9 @@
             <% }) %>
           </ul>
 
+          <h3>Request hash</h3>
+          <p><strong>Record hash (SHA-256):</strong> <%= multiSig.partials[0].requestHash %></p>
+
           <form action="/query-record" method="POST">
             <input type="hidden" name="recordID" value="<%= recordId %>">
             <input type="hidden" name="stage" value="partials">
@@ -95,7 +98,6 @@
           </form>
         <% } else if (queryStage === 'partials') { %>
           <h2>Step 2: Inventory Partial Signatures</h2>
-          <p><strong>Request hash:</strong> <%= multiSig.partials[0].requestHash %></p>
           <ul>
             <% multiSig.partials.forEach(part => { %>
               <li>

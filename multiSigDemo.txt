@@ -1,0 +1,372 @@
+MULTI-SIGNATURE DEMONSTRATION
+==============================
+
+All values below are taken directly from the List of Keys document.
+
+
+──────────────────────────────────────────────────────────────
+STEP 1: Initialise Cryptographic Parameters
+──────────────────────────────────────────────────────────────
+
+PKG (Private Key Generator) — the trusted authority
+
+  p = 1004162036461488639338597000466705179253226703
+  q = 950133741151267522116252385927940618264103623
+  e = 973028207197278907211
+  n = p × q = 954088232425229706382520201245618381050107066567161988535764573189666148989564060702644969
+  φ = (p−1)(q−1)
+  d = e⁻¹ mod φ = 200741941128288805881102727578608580108883612200449762472742993774612841866556866387286291
+
+  Public key  : (e, n)
+  Private key : (d, n)
+
+
+Identity-based secret keys — PKG derives one per inventory:
+
+  Formula: secretKey = SHA256("InventoryX:<id>") ^ d mod n
+
+  Inventory A  →  identity string: "InventoryA:126"
+                  secretKey = 28101008793367102589024118670893464397947423035347515959926950560043592192358861862535971
+
+  Inventory B  →  identity string: "InventoryB:127"
+                  secretKey = 236427241118434996804399198300382307034078898949298349467034836575290073555614705362035271
+
+  Inventory C  →  identity string: "InventoryC:128"
+                  secretKey = 427258791354502969629613577839646392699785861311546461593819748013125371378264693771782196
+
+  Inventory D  →  identity string: "InventoryD:129"
+                  secretKey = 242091426633782826421928570106314368411815261541461553669393620752847359554310343818249829
+
+
+t-values — blinding factor per inventory:
+
+  Formula: t = random ^ e mod n
+
+  Inventory A  (random = 621):  t = 924557310458718712013264487402131145960397638068504605687003354984010171965713299494943820
+  Inventory B  (random = 721):  t = 465846207756861894961492272409872942324819834860512827013926688898633436265338481059370415
+  Inventory C  (random = 821):  t = 78151043497445054159280444179492074468410085478065819376129170939641218107753496475414232
+  Inventory D  (random = 921):  t = 822647722156477994505052001658171996778199886266488031413434243060906736182562144615387307
+
+
+PROCUREMENT (external querying user) key pair:
+
+  p = 1080954735722463992988394149602856332100628417
+  q = 1158106283320086444890911863299879973542293243
+  e = 106506253943651610547613
+  n = p × q = 1251860471424789052966525878914535614061432909643973429720664756803786476370927527592886331
+  d = e⁻¹ mod φ = 1011366078496009346845383448209985404012306581197309959773151470567275109692022512612101173
+
+  Public key  : (e, n)
+  Private key : (d, n)
+
+
+──────────────────────────────────────────────────────────────
+STEP 2: PROCUREMENT Submits a Query
+──────────────────────────────────────────────────────────────
+
+  PROCUREMENT requests the record with ItemID = "1".
+
+  The query is sent to the distributed inventory system.
+  The system checks all 4 inventory nodes for that record.
+
+
+──────────────────────────────────────────────────────────────
+STEP 3: System Looks Up the Record
+──────────────────────────────────────────────────────────────
+
+  Inventory A: FOUND  →  ItemID=1, Qty=1, Price=1, Location=B
+  Inventory B: FOUND  →  ItemID=1, Qty=1, Price=1, Location=B
+  Inventory C: FOUND  →  ItemID=1, Qty=1, Price=1, Location=B
+  Inventory D: FOUND  →  ItemID=1, Qty=1, Price=1, Location=B
+
+  Inventories holding this record: 4/4  →  consensus possible (≥3 required)
+
+
+──────────────────────────────────────────────────────────────
+STEP 4: Multi-Signature Verification
+──────────────────────────────────────────────────────────────
+
+  Record string : "1, 1, 1, B"
+  SHA-256 hash  : 891aca788c45907edef1e8e1ca50f8bcdd8053ee919942709c09ef0751f2166a
+  Hash (BigInt) : 62014195682319722934347996263796160145667710631891938957706942638700285269610
+
+  Each inventory computes a partial signature using:
+    partialSig = (hash × secretKey + random + t) mod n
+
+  Inventory A:  partialSig = 202026236584696025518605421129948167667386383385628152767035751979394737490180331285639203   valid = true
+  Inventory B:  partialSig = 144302342647038043518738135333732188574762074130226997925655648284723369105728000205786866   valid = true
+  Inventory C:  partialSig = 320197542675788127359776587410851872898749365902429277352707391102164713569650144196249130   valid = true
+  Inventory D:  partialSig = 410243214308529958517725080505892338120744794624098074637204128559376351029443008441985578   valid = true
+
+  Combined signature = sum of all partialSigs mod n
+                     = 122681103790822448532325023134806186211535551475220514146838346735993022205437423427015808
+
+  Valid partial signatures : 4/4
+  Node consensus           : 4/4
+
+  ► Approval decision: APPROVED
+
+
+──────────────────────────────────────────────────────────────
+STEP 5: Protect the Response Before Transmission
+──────────────────────────────────────────────────────────────
+
+  The record hash is encrypted with PROCUREMENT's public key before sending.
+  Only PROCUREMENT — with their private key — can decrypt it.
+
+  Formula: protectedSeal = hashBigInt ^ e_PROC mod n_PROC
+
+  Original hash (BigInt) : 62014195682319722934347996263796160145667710631891938957706942638700285269610
+  Protected seal         : 934902041745977460732728767674757122718531703027455078883878602845693649231098073550890534
+
+  Transmitted to PROCUREMENT:
+    {
+      record        : { ItemID: 1, ItemQty: 1, ItemPrice: 1, location: B }
+      protectedSeal : 934902041745977460732728767674757122718531703027455078883878602845693649231098073550890534
+    }
+
+  The protectedSeal is unreadable without PROCUREMENT's private key.
+
+
+──────────────────────────────────────────────────────────────
+STEP 6: PROCUREMENT Recovers and Verifies the Response
+──────────────────────────────────────────────────────────────
+
+  Formula: recoveredHash = protectedSeal ^ d_PROC mod n_PROC
+
+  Recovered hash (BigInt) : 62014195682319722934347996263796160145667710631891938957706942638700285269610
+  Recovered hash (hex)    : 891aca788c45907edef1e8e1ca50f8bcdd8053ee919942709c09ef0751f2166a
+  Expected hash           : 891aca788c45907edef1e8e1ca50f8bcdd8053ee919942709c09ef0751f2166a
+  Seal decryption match   : YES
+
+  PROCUREMENT re-hashes the received record to confirm it was not tampered with:
+  Re-computed hash        : 891aca788c45907edef1e8e1ca50f8bcdd8053ee919942709c09ef0751f2166a
+  Record integrity intact : YES
+
+  Final result returned to PROCUREMENT:
+    ItemID    : 1
+    ItemQty   : 1
+    ItemPrice : 1
+    Location  : B
+
+
+──────────────────────────────────────────────────────────────
+CONSENSUS WORKFLOW — HOW RECORDS ARE AGREED UPON AND COMMITTED
+──────────────────────────────────────────────────────────────
+
+Overview
+  Before a record can be queried using multi-signature verification, it must
+  first be committed to the distributed ledger through a consensus process.
+  Consensus ensures that a record is genuine and agreed upon by the majority
+  of inventory nodes before it is permanently stored.
+
+  The rule is simple: a record must exist in at least 3 out of 4 inventory
+  nodes before it is considered valid and committed to the ledger.
+
+
+─── Function: canonicalRecordKey(record) ────────────────────
+
+  Purpose:
+    Converts a record into a single string that uniquely represents its content.
+    This string is used as a key to group and compare records across nodes.
+
+  How it works:
+    Joins the four record fields with a | separator:
+      ItemID | ItemQty | ItemPrice | location
+
+  Example:
+    { ItemID: "1", ItemQty: "1", ItemPrice: "1", location: "B" }
+    → "1|1|1|B"
+
+  Why it matters:
+    Two records from different nodes are considered identical only if they
+    produce the exact same canonical key. This prevents partial matches
+    (e.g. same ItemID but different quantity) from being counted as agreement.
+
+
+─── Function: buildInventoryEntry(record) ───────────────────
+
+  Purpose:
+    Wraps a raw record into the structured format stored in inventoryX.json.
+
+  How it works:
+    Reads originNode from the record and produces:
+      {
+        original    : "B"           ← which node originally submitted this
+        record      : { ...record } ← the full record data
+        recordString: "1|1|1|B"    ← the canonical key for quick reference
+      }
+
+  Why it matters:
+    Every committed entry on the ledger carries the canonical key alongside
+    the record so future lookups can compare efficiently without re-computing.
+
+
+─── Function: readJsonFile(filePath) ────────────────────────
+
+  Purpose:
+    Safely reads a JSON file from disk and returns its contents as an array.
+    Returns an empty array if the file does not exist or is empty.
+
+  Why it matters:
+    Inventory and pending files may not exist yet (e.g. on first run).
+    This function prevents the system from crashing in those cases.
+
+
+─── Function: writeJsonFile(filePath, data) ─────────────────
+
+  Purpose:
+    Saves an array of records back to a JSON file on disk in a readable format.
+
+  Why it matters:
+    Used by both the commit step (writing to inventoryX.json) and the cleanup
+    step (rewriting pendingX.json after removing committed records).
+
+
+─── Function: buildCandidates(pendingByInventory) ───────────
+
+  Purpose:
+    This is the core of the consensus check. It reads all pending records
+    from all 4 nodes and counts how many nodes hold each unique record.
+
+  How it works:
+    1. Loops through every node's pending list.
+    2. For each entry, computes its canonical key.
+    3. Groups entries by canonical key using a map.
+    4. Tracks which nodes (sources) hold each unique record.
+    5. Returns a list of candidates with their count and source list.
+
+  Example:
+    pendingA: [ "1|1|1|B" ]
+    pendingB: [ "1|1|1|B" ]
+    pendingC: [ "1|1|1|B" ]
+    pendingD: [ "1|1|1|B" ]
+
+    → candidates: [
+        { record: {...}, recordKey: "1|1|1|B", count: 4, sources: [A,B,C,D] }
+      ]
+
+    Any candidate with count >= 3 passes consensus.
+
+  Why it matters:
+    This function determines whether the network has reached agreement.
+    A record held by only 1 or 2 nodes is not trusted — it could be
+    a tampered or isolated copy. Requiring 3 out of 4 means even if one
+    node is compromised, the honest majority still governs the result.
+
+
+─── Function: readAllPending() ──────────────────────────────
+
+  Purpose:
+    Reads all four pendingX.json files at once and returns them together.
+
+  Returns:
+    { A: [...], B: [...], C: [...], D: [...] }
+
+  Why it matters:
+    Provides a single consistent snapshot of all pending records across
+    the network for the compare and commit stages to work from.
+
+
+─── Function: commitConsensus(passedRecords) ────────────────
+
+  Purpose:
+    Permanently writes consensus-approved records to the ledger and
+    removes them from the pending queues.
+
+  How it works — Part 1 (write to ledger):
+    For each passed record and each inventory node:
+      1. Read the current inventoryX.json.
+      2. Check if the exact same record (same canonical key) already exists.
+      3. If not already there, append the new entry.
+      4. Write the updated list back to inventoryX.json.
+
+    Old entries are never deleted. New entries are always appended.
+    This is blockchain behaviour — the ledger only grows, it never shrinks.
+
+  How it works — Part 2 (clear from pending):
+    For each node:
+      1. Read the current pendingX.json.
+      2. Remove any entries whose canonical key matches a committed record.
+      3. Write the remaining entries back to pendingX.json.
+
+  Why it matters:
+    This is the point of no return. Once committed, a record is part of the
+    permanent ledger on all 4 nodes. Clearing the pending queue ensures the
+    same record is not processed again in future consensus rounds.
+
+
+─── Function: processConsensus(stage) ───────────────────────
+
+  Purpose:
+    The main entry point for the consensus workflow. Controls which stage
+    runs based on the stage parameter passed from the web interface.
+
+  Stage: 'compare'
+    - Reads all pending files via readAllPending().
+    - Runs buildCandidates() to group and count records.
+    - Filters candidates to those with count >= 3.
+    - Returns the result for display — nothing is written yet.
+    - If at least one candidate passes, the Commit button is shown.
+
+  Stage: 'commit'
+    - Repeats the compare step to get the current passed records.
+    - If no candidates pass, returns a failure message.
+    - If candidates pass, calls commitConsensus() to write to the ledger.
+    - Returns a success message listing what was committed.
+
+  Why the two-stage design:
+    Separating compare from commit lets the user see what will be committed
+    before it actually happens. This makes the consensus process transparent
+    and auditable — important properties in a distributed ledger system.
+
+
+─── Consensus Workflow Summary ──────────────────────────────
+
+  Submit stage (handled by submitController):
+    1. Origin node signs the record with its RSA private key.
+    2. Record + signature are broadcast to all 4 nodes.
+    3. Each node verifies the signature before storing in pendingX.json.
+    4. Only verified records enter the pending queue.
+
+  Compare stage:
+    1. All four pending queues are read.
+    2. Records are grouped by canonical key.
+    3. Any record held by >= 3 nodes is a consensus candidate.
+    4. Result is displayed to the user. No writes occur.
+
+  Commit stage:
+    1. Consensus candidates are identified again.
+    2. Each passed record is appended to all four inventoryX.json files.
+    3. Committed records are removed from all four pendingX.json files.
+    4. The ledger is now updated across the entire network.
+
+  After commit, the record is available for multi-signature query
+  verification as demonstrated in Steps 2–6 above.
+
+
+──────────────────────────────────────────────────────────────
+HOW THIS IMPROVES TRUST, ACCOUNTABILITY, AND CONFIDENTIALITY
+──────────────────────────────────────────────────────────────
+
+Trust
+  No single inventory node can return a result on its own. The multi-signature
+  requires at least 3 out of 4 nodes to independently sign the same record.
+  A corrupted or compromised node cannot forge the combined signature alone,
+  so the querying user can trust that the result reflects the majority state
+  of the distributed ledger.
+
+Accountability
+  Every partial signature is tied to a PKG-issued secret key that is derived
+  from the node's identity string (e.g. "InventoryA:126"). This means each
+  node's contribution to the combined signature is traceable back to that
+  specific identity. If a node signs a fraudulent record, its identity is
+  embedded in the signature and can be audited.
+
+Confidentiality
+  After the result is approved, the record hash is encrypted with PROCUREMENT's
+  public key before transmission. Anyone intercepting the response sees only
+  the ciphertext (protectedSeal) and the plaintext record, but cannot confirm
+  whether the record matches the approved hash without PROCUREMENT's private key.
+  Only the intended recipient can decrypt the seal and verify the integrity
+  of the data they received.

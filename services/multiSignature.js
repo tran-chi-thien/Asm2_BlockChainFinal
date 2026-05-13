@@ -8,7 +8,7 @@ function computePKGKeyPair() {
   const d = modInverse(e, phi);
   return { p, q, e, n, phi, d };
 }
-
+//secretKey based on identity
 function deriveIdentitySecretKeys(pkgParams) {
   const secrets = {};
   for (const identityName of Object.keys(keys.IDENTITIES)) {
