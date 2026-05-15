@@ -46,7 +46,8 @@ function verifyPartialSignature(partialSignature, requestHashBig, secretKey, ran
   const expected = (requestHashBig * secretKey + randomValue + tValue) % pkgParams.n;
   return expected === partialSignature;
 }
-
+// Builds partial signatures then combines them to create a multi signature 
+// that gets sent to the querying client for verification
 function buildPartialSignatures(record, identitySecrets, tValues, pkgParams) {
   const requestHash = hashRecord(record);
   const requestHashBig = BigInt(`0x${requestHash}`);

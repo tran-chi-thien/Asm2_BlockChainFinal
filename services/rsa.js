@@ -124,18 +124,6 @@ function verifySignature(signature, record) {
   };
 }
 
-// Changes data to make signature verification fail
-function tamperRecord(record) {
-  if (typeof record === "string") {
-    return `${record}1`;
-  }
-
-  return {
-    ...record,
-    ItemID: `${record.ItemID ?? record.recordID ?? ""}1`
-  };
-}
-
 // Process pending records: verify signatures and store valid full records in pending, delete old data + signature
 async function processPending() {
   const inventories = ['A', 'B', 'C', 'D'];
@@ -186,6 +174,5 @@ module.exports = {
   calculateRSAParams,
   signRecord,
   verifySignature,
-  tamperRecord,
   processPending
 };
